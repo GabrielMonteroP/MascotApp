@@ -32,6 +32,25 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import kotlinx.coroutines.launch
 import androidx.compose.animation.core.*
+import android.content.pm.PackageManager
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.core.content.ContextCompat
+import android.Manifest
+import android.util.Log
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.Preview
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.view.PreviewView
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.viewinterop.AndroidView
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+
+
+
 
 
 // 🟤 LOGIN SCREEN
@@ -266,13 +285,16 @@ fun HomeScreen(navController: NavController, email: String) {
                 composable("tienda") {
                     TiendaScreen(
                         selectedHat = selectedHat,
-                        onHatSelected = { selectedHat = it }
+                        onHatSelected = { selectedHat = it },
+                        homeNavController = homeNavController
                     )
                 }
+
                 composable("mascota") { MascotaScreen() }
                 composable("mapa") { MapaScreen() }
                 composable("perfil") { PerfilScreen() }
                 composable("configuracion") { ConfiguracionScreen(navController) }
+                composable("escanear") { EscanearScreen(homeNavController) }
             }
         }
     }
@@ -285,7 +307,7 @@ fun BottomNavigationBar(navController: NavHostController) {
     val items = listOf(
         BottomNavItem("Historial", "historial"),
         BottomNavItem("Tienda", "tienda"),
-        BottomNavItem("Mascota", "mascota"),
+        BottomNavItem("Escanear", "escanear"),
         BottomNavItem("Mapa", "mapa"),
         BottomNavItem("Perfil", "perfil")
     )
@@ -307,97 +329,111 @@ data class BottomNavItem(val label: String, val route: String)
 
 
 // 🟤 TIENDA + ROPERO
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun TiendaScreen(
     selectedHat: Int?,
-    onHatSelected: (Int?) -> Unit
+    onHatSelected: (Int?) -> Unit,
+    homeNavController: NavController
 ) {
-    val hats = listOf(
-        R.drawable.gorro1,
-        R.drawable.gorro2,
-        R.drawable.gorro3,
-        R.drawable.gorro4,
-        R.drawable.gorro5
-    )
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFF4E342E))
-            .padding(16.dp),
-        contentAlignment = Alignment.TopCenter
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-
-
-
-            Text(
-                "Tienda CoffeePet ☕",
-                color = Color.White,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold
+    Scaffold(
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = { Text("Tienda CoffeePet ☕", color = Color.White, fontWeight = FontWeight.SemiBold) },
+                navigationIcon = {
+                    IconButton(onClick = {
+                        homeNavController.navigate("mascota") {
+                            popUpTo("tienda") { inclusive = true }
+                        }
+                    }) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Volver al Home", tint = Color.White)
+                    }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = Color(0xFF3E2723)
+                )
             )
+        },
+        containerColor = MaterialTheme.colorScheme.background
+    ) { paddingValues ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0xFF4E342E))
+                .padding(paddingValues)
+                .padding(16.dp),
+            contentAlignment = Alignment.TopCenter
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
 
-            Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(8.dp))
 
-            MascotaIdle(
-                selectedHat = selectedHat,
-                modifier = Modifier
-                    .size(150.dp)
-                    .padding(8.dp)
-            )
+                MascotaIdle(
+                    selectedHat = selectedHat,
+                    modifier = Modifier
+                        .size(150.dp)
+                        .padding(8.dp)
+                )
 
-            Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(24.dp))
 
-            Text(
-                "Ropero de gorros 🎩",
-                color = Color.White,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.SemiBold
-            )
+                Text(
+                    "Ropero de gorros 🎩",
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
 
-            Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(12.dp))
 
-            // ✅ FlowRow correcto en Compose Foundation
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                hats.forEach { hatRes ->
-                    Card(
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (hatRes == selectedHat) Color(0xFF8D6E63)
-                            else Color(0xFF6D4C41)
-                        ),
-                        modifier = Modifier
-                            .size(90.dp)
-                            .clickable { onHatSelected(hatRes) }
-                    ) {
-                        Image(
-                            painter = painterResource(id = hatRes),
-                            contentDescription = "Gorro",
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    val hats = listOf(
+                        R.drawable.gorro1,
+                        R.drawable.gorro2,
+                        R.drawable.gorro3,
+                        R.drawable.gorro4,
+                        R.drawable.gorro5
+                    )
+                    hats.forEach { hatRes ->
+                        Card(
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (hatRes == selectedHat)
+                                    Color(0xFF8D6E63)
+                                else Color(0xFF6D4C41)
+                            ),
                             modifier = Modifier
-                                .fillMaxSize()
-                                .padding(8.dp)
-                        )
+                                .size(90.dp)
+                                .clickable { onHatSelected(hatRes) }
+                        ) {
+                            Image(
+                                painter = painterResource(id = hatRes),
+                                contentDescription = "Gorro",
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(8.dp)
+                            )
+                        }
                     }
                 }
-            }
 
-            Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(24.dp))
 
-            Button(
-                onClick = { onHatSelected(null) },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5D4037))
-            ) {
-                Text("Quitar gorro ❌", color = Color.White)
+                Button(
+                    onClick = { onHatSelected(null) },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5D4037))
+                ) {
+                    Text("Quitar gorro ❌", color = Color.White)
+                }
             }
         }
     }
 }
+
 
 
 // 🟤 OTRAS PANTALLAS
@@ -525,6 +561,129 @@ fun HistorialScreen(homeNavController: NavController) {
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Text(lugar, color = Color.White, fontSize = 16.sp, modifier = Modifier.padding(16.dp))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EscanearScreen(homeNavController: NavController) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    // 🔹 Verificar si el permiso de cámara está concedido
+    var hasCameraPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(
+                context, Manifest.permission.CAMERA
+            ) == PackageManager.PERMISSION_GRANTED
+        )
+    }
+
+    // 🔹 Launcher para pedir permiso
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        hasCameraPermission = granted
+        if (!granted) {
+            Toast.makeText(context, "Permiso de cámara denegado ☕", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // 🔹 Executor para CameraX
+    val cameraExecutor: ExecutorService = remember { Executors.newSingleThreadExecutor() }
+
+    Scaffold(
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = {
+                    Text(
+                        "Escanear código QR 📷",
+                        color = Color.White,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = {
+                        homeNavController.navigate("mascota") {
+                            popUpTo("escanear") { inclusive = true }
+                        }
+                    }) {
+                        Icon(
+                            Icons.Default.ArrowBack,
+                            contentDescription = "Volver al Home",
+                            tint = Color.White
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = Color(0xFF3E2723)
+                )
+            )
+        },
+        containerColor = MaterialTheme.colorScheme.background
+    ) { paddingValues ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0xFF4E342E))
+                .padding(paddingValues),
+            contentAlignment = Alignment.Center
+        ) {
+            if (hasCameraPermission) {
+                // ✅ Vista previa de cámara en vivo
+                AndroidView(
+                    factory = { ctx ->
+                        val previewView = PreviewView(ctx).apply {
+                            scaleType = PreviewView.ScaleType.FILL_CENTER
+                        }
+
+                        val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
+                        cameraProviderFuture.addListener({
+                            val cameraProvider = cameraProviderFuture.get()
+                            val preview = Preview.Builder().build().also {
+                                it.setSurfaceProvider(previewView.surfaceProvider)
+                            }
+
+                            val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+
+                            try {
+                                cameraProvider.unbindAll()
+                                cameraProvider.bindToLifecycle(
+                                    lifecycleOwner, cameraSelector, preview
+                                )
+                            } catch (e: Exception) {
+                                Log.e("CameraX", "Error al iniciar la cámara", e)
+                            }
+                        }, ContextCompat.getMainExecutor(ctx))
+
+                        previewView
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth(0.9f)
+                        .fillMaxHeight(0.6f)
+                        .clip(MaterialTheme.shapes.medium)
+                )
+            } else {
+                // ❌ Si no hay permiso de cámara
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        "La cámara necesita permiso para funcionar ☕",
+                        color = Color.White,
+                        textAlign = TextAlign.Center,
+                        fontSize = 16.sp
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    Button(
+                        onClick = {
+                            permissionLauncher.launch(Manifest.permission.CAMERA)
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5D4037))
+                    ) {
+                        Text("Dar permiso 📸", color = Color.White)
                     }
                 }
             }
