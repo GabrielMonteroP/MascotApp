@@ -48,6 +48,8 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.viewinterop.AndroidView
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import androidx.camera.core.ImageAnalysis
+
 
 
 
@@ -574,8 +576,11 @@ fun EscanearScreen(homeNavController: NavController) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    // 🔹 Verificar si el permiso de cámara está concedido
-    var hasCameraPermission by remember {
+    // 🔹 Estado para mostrar el QR detectado
+    var qrDetectado by remember { mutableStateOf("") }
+
+    // 🔹 Verificar permisos
+    var tienePermisoCamara by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(
                 context, Manifest.permission.CAMERA
@@ -583,17 +588,17 @@ fun EscanearScreen(homeNavController: NavController) {
         )
     }
 
-    // 🔹 Launcher para pedir permiso
-    val permissionLauncher = rememberLauncherForActivityResult(
+    // 🔹 Launcher para solicitar permiso
+    val permisoLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        hasCameraPermission = granted
-        if (!granted) {
+    ) { concedido ->
+        tienePermisoCamara = concedido
+        if (!concedido) {
             Toast.makeText(context, "Permiso de cámara denegado ☕", Toast.LENGTH_SHORT).show()
         }
     }
 
-    // 🔹 Executor para CameraX
+    // 🔹 Executor de cámara
     val cameraExecutor: ExecutorService = remember { Executors.newSingleThreadExecutor() }
 
     Scaffold(
@@ -633,42 +638,73 @@ fun EscanearScreen(homeNavController: NavController) {
                 .padding(paddingValues),
             contentAlignment = Alignment.Center
         ) {
-            if (hasCameraPermission) {
-                // ✅ Vista previa de cámara en vivo
-                AndroidView(
-                    factory = { ctx ->
-                        val previewView = PreviewView(ctx).apply {
-                            scaleType = PreviewView.ScaleType.FILL_CENTER
-                        }
-
-                        val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
-                        cameraProviderFuture.addListener({
-                            val cameraProvider = cameraProviderFuture.get()
-                            val preview = Preview.Builder().build().also {
-                                it.setSurfaceProvider(previewView.surfaceProvider)
+            if (tienePermisoCamara) {
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    // ✅ Vista previa de la cámara
+                    AndroidView(
+                        factory = { ctx ->
+                            val previewView = PreviewView(ctx).apply {
+                                scaleType = PreviewView.ScaleType.FILL_CENTER
                             }
 
-                            val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+                            val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
+                            cameraProviderFuture.addListener({
+                                val cameraProvider = cameraProviderFuture.get()
+                                val preview = Preview.Builder().build().also {
+                                    it.setSurfaceProvider(previewView.surfaceProvider)
+                                }
 
-                            try {
-                                cameraProvider.unbindAll()
-                                cameraProvider.bindToLifecycle(
-                                    lifecycleOwner, cameraSelector, preview
-                                )
-                            } catch (e: Exception) {
-                                Log.e("CameraX", "Error al iniciar la cámara", e)
-                            }
-                        }, ContextCompat.getMainExecutor(ctx))
+                                val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
 
-                        previewView
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth(0.9f)
-                        .fillMaxHeight(0.6f)
-                        .clip(MaterialTheme.shapes.medium)
-                )
+                                // 🔹 Analizador QR
+                                val imageAnalysis = ImageAnalysis.Builder()
+                                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                                    .build()
+                                    .also {
+                                        it.setAnalyzer(cameraExecutor, LectorQr { valorQr ->
+                                            qrDetectado = valorQr
+                                            Log.d("CoffeePetQR", "Detectado: $valorQr")
+                                        })
+                                    }
+
+                                try {
+                                    cameraProvider.unbindAll()
+                                    cameraProvider.bindToLifecycle(
+                                        lifecycleOwner, cameraSelector, preview, imageAnalysis
+                                    )
+                                } catch (e: Exception) {
+                                    Log.e("CameraX", "Error al iniciar cámara", e)
+                                }
+                            }, ContextCompat.getMainExecutor(ctx))
+
+                            previewView
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth(0.9f)
+                            .fillMaxHeight(0.55f)
+                            .clip(MaterialTheme.shapes.medium)
+                    )
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    // 🔹 Mostrar texto del QR detectado
+                    Text(
+                        text = if (qrDetectado.isNotEmpty())
+                            "Código detectado: $qrDetectado"
+                        else
+                            "Apunta la cámara a un código QR ☕",
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                }
             } else {
-                // ❌ Si no hay permiso de cámara
+                // ❌ Si no tiene permiso
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
                         "La cámara necesita permiso para funcionar ☕",
@@ -679,7 +715,7 @@ fun EscanearScreen(homeNavController: NavController) {
                     Spacer(Modifier.height(16.dp))
                     Button(
                         onClick = {
-                            permissionLauncher.launch(Manifest.permission.CAMERA)
+                            permisoLauncher.launch(Manifest.permission.CAMERA)
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5D4037))
                     ) {
