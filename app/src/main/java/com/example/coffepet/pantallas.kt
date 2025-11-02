@@ -49,11 +49,21 @@ import androidx.compose.ui.viewinterop.AndroidView
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import androidx.camera.core.ImageAnalysis
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Divider
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 
 
-
-
-
+data class TiendaItem(
+    val nombre: String,
+    val descripcion: String,
+    val costo: Int,
+    val icon: Int
+)
 
 // 🟤 LOGIN SCREEN
 @Composable
@@ -239,11 +249,20 @@ fun LoginScreen(navController: NavController) {
 @Composable
 fun HomeScreen(navController: NavController, email: String) {
     val homeNavController = rememberNavController()
+    val context = LocalContext.current
+    val userPrefs = remember { UserPreferences(context) }
+    val scope = rememberCoroutineScope()
+    val userCoinsFlow = userPrefs.getCoinsForUser(email)
+    val userCoins: Int by userCoinsFlow.collectAsState(initial = 0)
+    val onCoinChange: (Int) -> Unit = { newCoins ->
+        scope.launch {
+            userPrefs.saveCoinsForUser(email, newCoins)
+        }
+    }
 
     var userLevel by remember { mutableStateOf(1) }
     var currentExp by remember { mutableStateOf(40f) }
     var maxExp by remember { mutableStateOf(100f) }
-    var userCoins by remember { mutableStateOf(9999) }
 
     // 🎩 Estado global del gorro
     var selectedHat by remember { mutableStateOf<Int?>(null) }
@@ -286,6 +305,8 @@ fun HomeScreen(navController: NavController, email: String) {
                 composable("historial") { HistorialScreen(homeNavController) }
                 composable("tienda") {
                     TiendaScreen(
+                        userCoins = userCoins,
+                        onCoinChange = onCoinChange,
                         selectedHat = selectedHat,
                         onHatSelected = { selectedHat = it },
                         homeNavController = homeNavController
@@ -334,14 +355,26 @@ data class BottomNavItem(val label: String, val route: String)
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun TiendaScreen(
+    userCoins: Int,
+    onCoinChange: (Int) -> Unit,
     selectedHat: Int?,
     onHatSelected: (Int?) -> Unit,
     homeNavController: NavController
 ) {
+
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val descuentos = remember {
+        listOf(
+            TiendaItem("Café Gratis", "Un café de cualquier tamaño.", 500, R.drawable.ic_launcher_foreground),
+            TiendaItem("50% Descuento", "Mitad de precio en cualquier producto.", 1200, R.drawable.ic_launcher_foreground),
+            TiendaItem("Accesorio Único", "Un item especial para tu CoffeePet.", 2000, R.drawable.ic_launcher_foreground)
+        )
+    }
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Tienda CoffeePet ☕", color = Color.White, fontWeight = FontWeight.SemiBold) },
+                title = { Text("Tienda CoffeePet", color = Color.White, fontWeight = FontWeight.SemiBold) },
                 navigationIcon = {
                     IconButton(onClick = {
                         homeNavController.navigate("mascota") {
@@ -356,93 +389,186 @@ fun TiendaScreen(
                 )
             )
         },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color(0xFF4E342E))
                 .padding(paddingValues)
                 .padding(16.dp),
-            contentAlignment = Alignment.TopCenter
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
 
-                Spacer(Modifier.height(8.dp))
 
-                MascotaIdle(
-                    selectedHat = selectedHat,
-                    modifier = Modifier
-                        .size(150.dp)
-                        .padding(8.dp)
+            Spacer(Modifier.height(8.dp))
+
+            MascotaIdle(
+                selectedHat = selectedHat,
+                modifier = Modifier
+                    .size(150.dp)
+                    .padding(8.dp)
+            )
+
+            Spacer(Modifier.height(24.dp))
+
+            Text(
+                "Ropero de gorros 🎩",
+                color = Color.White,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            Spacer(Modifier.height(12.dp))
+
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                val hats = listOf(
+                    R.drawable.gorro1,
+                    R.drawable.gorro2,
+                    R.drawable.gorro3,
+                    R.drawable.gorro4,
+                    R.drawable.gorro5
                 )
-
-                Spacer(Modifier.height(24.dp))
-
-                Text(
-                    "Ropero de gorros 🎩",
-                    color = Color.White,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-
-                Spacer(Modifier.height(12.dp))
-
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    val hats = listOf(
-                        R.drawable.gorro1,
-                        R.drawable.gorro2,
-                        R.drawable.gorro3,
-                        R.drawable.gorro4,
-                        R.drawable.gorro5
-                    )
-                    hats.forEach { hatRes ->
-                        Card(
-                            shape = RoundedCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = if (hatRes == selectedHat)
-                                    Color(0xFF8D6E63)
-                                else Color(0xFF6D4C41)
-                            ),
+                hats.forEach { hatRes ->
+                    Card(
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (hatRes == selectedHat)
+                                Color(0xFF8D6E63)
+                            else Color(0xFF6D4C41)
+                        ),
+                        modifier = Modifier
+                            .size(90.dp)
+                            .clickable { onHatSelected(hatRes) }
+                    ) {
+                        Image(
+                            painter = painterResource(id = hatRes),
+                            contentDescription = "Gorro",
                             modifier = Modifier
-                                .size(90.dp)
-                                .clickable { onHatSelected(hatRes) }
-                        ) {
-                            Image(
-                                painter = painterResource(id = hatRes),
-                                contentDescription = "Gorro",
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(8.dp)
-                            )
-                        }
+                                .fillMaxSize()
+                                .padding(8.dp)
+                        )
                     }
                 }
+            }
 
-                Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(24.dp))
 
-                Button(
-                    onClick = { onHatSelected(null) },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5D4037))
-                ) {
-                    Text("Quitar gorro ❌", color = Color.White)
+            Button(
+                onClick = { onHatSelected(null) },
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5D4037))
+            ) {
+                Text("Quitar gorro ❌", color = Color.White)
+            }
+
+            //DESCUENTOS
+
+            Text(
+                "Descuentos",
+                color = Color.White,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(top = 24.dp, bottom = 12.dp)
+            )
+
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(descuentos) { item ->
+                    Card(
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF6D4C41)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(item.nombre, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                Text(item.descripcion, color = Color.LightGray, fontSize = 12.sp)
+                            }
+                            Spacer(Modifier.width(16.dp))
+                            Button(
+                                onClick = {
+                                    if (userCoins >= item.costo) {
+                                        onCoinChange(userCoins - item.costo)
+                                        scope.launch { snackbarHostState.showSnackbar("¡${item.nombre} comprado! Revisa tu perfil.") }
+                                    } else {
+                                        scope.launch { snackbarHostState.showSnackbar("Monedas insuficientes. Costo: ${item.costo} ") }
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF795548)),
+                                enabled = userCoins >= item.costo
+                            ) {
+                                Icon(Icons.Default.Star, contentDescription = "Costo", tint = Color(0xFFFFD600), modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text(item.costo.toString(), color = Color.White)
+                            }
+                        }
+                    }
                 }
             }
         }
     }
 }
-
-
-
 // 🟤 OTRAS PANTALLAS
 @Composable fun MascotaScreen() { Box(Modifier.fillMaxSize()) }
-@Composable fun MapaScreen() { Box(Modifier.fillMaxSize(), Alignment.Center) { Text("Pantalla de Mapa", color = Color.White) } }
+//Mapa
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MapaScreen() {
+    Scaffold(
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = { Text("Mapa de cafeterías ", color = Color.White, fontWeight = FontWeight.SemiBold) },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = Color(0xFF3E2723)
+                )
+            )
+        },
+        containerColor = Color.Transparent
+    ) { paddingValues ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0xFF4E342E))
+                .padding(paddingValues),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(
+                    Icons.Default.LocationOn,
+                    contentDescription = "Mapa",
+                    tint = Color.Red,
+                    modifier = Modifier.size(80.dp)
+                )
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    "Locales",
+                    color = Color.White,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    "Locales cercanos.",
+                    color = Color.LightGray,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = 8.dp, start = 24.dp, end = 24.dp)
+                )
+            }
+        }
+    }
+}
 @Composable fun PerfilScreen() { Box(Modifier.fillMaxSize(), Alignment.Center) { Text("Pantalla de Perfil", color = Color.White) } }
-
 
 // 🟤 TOPBAR
 @Composable
@@ -475,13 +601,118 @@ fun TopBar(userLevel: Int, currentExp: Float, maxExp: Float, userCoins: Int, onS
 
 
 // 🟤 CONFIGURACION
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ConfiguracionScreen(navController: NavController) {
-    Box(
-        modifier = Modifier.fillMaxSize().background(Color(0xFF3E2723)),
-        contentAlignment = Alignment.Center
-    ) {
-        Text("Pantalla de Configuración ⚙️", color = Color.White, fontSize = 20.sp)
+    var notificacionesActivadas by remember { mutableStateOf(true) }
+    var volumen by remember { mutableStateOf(5f) }
+
+    Scaffold(
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = { Text("Ajustes", color = Color.White, fontWeight = FontWeight.SemiBold) },
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.Default.ArrowBack, "Volver", tint = Color.White)
+                    }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = Color(0xFF3E2723)
+                )
+            )
+        },
+        containerColor = MaterialTheme.colorScheme.background
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0xFF4E342E))
+                .padding(paddingValues)
+                .padding(16.dp)
+        ) {
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    "Recordatorios de visita",
+                    color = Color.White,
+                    fontSize = 16.sp
+                )
+                Switch(
+                    checked = notificacionesActivadas,
+                    onCheckedChange = { notificacionesActivadas = it },
+                    colors = SwitchDefaults.colors(checkedTrackColor = Color(0xFF795548))
+                )
+            }
+            Divider(color = Color(0xFF6D4C41), thickness = 1.dp)
+
+            Spacer(Modifier.height(24.dp))
+
+            Text(
+                "Volumen del Sonido (${volumen.toInt()})",
+                color = Color.White,
+                fontSize = 16.sp,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    Icons.Default.VolumeMute,
+                    contentDescription = "Volumen bajo",
+                    tint = Color.White,
+                    modifier = Modifier.size(24.dp)
+                )
+
+                Spacer(Modifier.width(8.dp))
+
+                Slider(
+                    value = volumen,
+                    onValueChange = { volumen = it },
+                    // Rango de 0 a 10
+                    valueRange = 0f..10f,
+                    steps = 9, // 10 valores posibles (0 a 10, 11 pasos)
+                    modifier = Modifier.weight(1f),
+                    colors = SliderDefaults.colors(
+                        thumbColor = Color(0xFF795548),
+                        activeTrackColor = Color(0xFF795548),
+                        inactiveTrackColor = Color(0xFF6D4C41)
+                    )
+                )
+
+                Spacer(Modifier.width(8.dp))
+
+                // Icono de volumen (ej: volumen alto)
+                Icon(
+                    Icons.Default.VolumeUp,
+                    contentDescription = "Volumen alto",
+                    tint = Color.White,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+
+            Divider(color = Color(0xFF6D4C41), thickness = 1.dp, modifier = Modifier.padding(top = 16.dp))
+
+            Spacer(Modifier.height(24.dp))
+            Button(
+                onClick = {
+                    navController.navigate("login") {
+                        popUpTo("home/{email}") { inclusive = true }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDB4437))
+            ) {
+                Text("Cerrar Sesión", color = Color.White)
+            }
+        }
     }
 }
 
