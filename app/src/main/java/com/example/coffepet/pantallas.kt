@@ -56,6 +56,12 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Divider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
+import com.google.android.gms.maps.model.CameraPosition
+import com.google.android.gms.maps.model.LatLng
+import com.google.maps.android.compose.GoogleMap
+import com.google.maps.android.compose.Marker
+import com.google.maps.android.compose.MarkerState
+import com.google.maps.android.compose.rememberCameraPositionState
 
 
 data class TiendaItem(
@@ -314,7 +320,7 @@ fun HomeScreen(navController: NavController, email: String) {
                 }
 
                 composable("mascota") { MascotaScreen() }
-                composable("mapa") { MapaScreen() }
+                composable("mapa") { MapaScreen(navController = navController) }
                 composable("perfil") { PerfilScreen() }
                 composable("configuracion") { ConfiguracionScreen(navController) }
                 composable("escanear") { EscanearScreen(homeNavController) }
@@ -525,46 +531,43 @@ fun TiendaScreen(
 //Mapa
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MapaScreen() {
+fun MapaScreen(navController: NavController) {
+    // 1. Define las coordenadas de tu cafetería (NUEVAS COORDENADAS)
+    val cafeLocation = LatLng(-33.499861507690675, -70.61655029657071)
+
+    // 2. Define el estado de la cámara del mapa
+    val cameraPositionState = rememberCameraPositionState {
+        // Inicializa la cámara en la nueva ubicación con un zoom de 15f
+        position = CameraPosition.fromLatLngZoom(cafeLocation, 15f)
+    }
+
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Mapa de cafeterías ", color = Color.White, fontWeight = FontWeight.SemiBold) },
+                title = { Text("Mapa de Cafetería", color = Color.White, fontWeight = FontWeight.SemiBold) },
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.Default.ArrowBack, "Volver", tint = Color.White)
+                    }
+                },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                     containerColor = Color(0xFF3E2723)
                 )
             )
         },
-        containerColor = Color.Transparent
+        containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
-        Box(
+        GoogleMap(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0xFF4E342E))
                 .padding(paddingValues),
-            contentAlignment = Alignment.Center
+            cameraPositionState = cameraPositionState
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(
-                    Icons.Default.LocationOn,
-                    contentDescription = "Mapa",
-                    tint = Color.Red,
-                    modifier = Modifier.size(80.dp)
-                )
-                Spacer(Modifier.height(16.dp))
-                Text(
-                    "Locales",
-                    color = Color.White,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    "Locales cercanos.",
-                    color = Color.LightGray,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(top = 8.dp, start = 24.dp, end = 24.dp)
-                )
-            }
+            Marker(
+                state = MarkerState(position = cafeLocation),
+                title = "Nuestra Cafetería",
+                snippet = "¡Visítanos y cuida a tu mascota!"
+            )
         }
     }
 }
