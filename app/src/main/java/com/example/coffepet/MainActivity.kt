@@ -29,10 +29,13 @@ class MainActivity : ComponentActivity() {
                         startDestination = "login",
                         modifier = Modifier.padding(innerPadding)
                     ) {
-                        // Pantalla de inicio de sesión
+                        // Pantalla de inicio de sesión (Login)
                         composable("login") { LoginScreen(navController) }
 
-                        // Pantalla principal, recibiendo el email como argumento
+                        // Pantalla de Registro
+                        composable("registroExtendido") { RegistroExtendidoScreen(navController) }
+
+                        // Pantalla principal
                         composable(
                             route = "home/{email}",
                             arguments = listOf(navArgument("email") { type = NavType.StringType })

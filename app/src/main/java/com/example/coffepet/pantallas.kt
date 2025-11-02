@@ -62,6 +62,9 @@ import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.rememberCameraPositionState
+import androidx.compose.foundation.border //
+import androidx.compose.foundation.layout.Spacer //
+import androidx.compose.foundation.shape.CircleShape
 
 
 data class TiendaItem(
@@ -72,6 +75,7 @@ data class TiendaItem(
 )
 
 // 🟤 LOGIN SCREEN
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LoginScreen(navController: NavController) {
     var email by remember { mutableStateOf("") }
@@ -138,6 +142,7 @@ fun LoginScreen(navController: NavController) {
 
                 Spacer(Modifier.height(32.dp))
 
+                // Campo Email
                 OutlinedTextField(
                     value = email,
                     onValueChange = { email = it },
@@ -158,6 +163,7 @@ fun LoginScreen(navController: NavController) {
 
                 Spacer(Modifier.height(12.dp))
 
+                // Campo Contraseña
                 OutlinedTextField(
                     value = password,
                     onValueChange = { password = it },
@@ -186,6 +192,7 @@ fun LoginScreen(navController: NavController) {
 
                 Spacer(Modifier.height(24.dp))
 
+                // Botón Sign In
                 Button(
                     onClick = {
                         val userPassword = users[email]
@@ -199,6 +206,7 @@ fun LoginScreen(navController: NavController) {
 
                 Spacer(Modifier.height(12.dp))
 
+                // Botón Iniciar con Google
                 Button(
                     onClick = { navController.navigate("home/$email") },
                     modifier = Modifier.fillMaxWidth(),
@@ -207,6 +215,7 @@ fun LoginScreen(navController: NavController) {
 
                 Spacer(Modifier.height(12.dp))
 
+                // Botón Iniciar con Facebook
                 Button(
                     onClick = { navController.navigate("home/$email") },
                     modifier = Modifier.fillMaxWidth(),
@@ -216,28 +225,10 @@ fun LoginScreen(navController: NavController) {
                 Spacer(Modifier.height(12.dp))
 
                 Button(
-                    onClick = {
-                        scope.launch {
-                            when {
-                                email.isBlank() && password.isBlank() ->
-                                    snackbarHostState.showSnackbar("Ingresa un correo y una contraseña ☕")
-                                email.isBlank() ->
-                                    snackbarHostState.showSnackbar("El campo de correo está vacío 💬")
-                                password.isBlank() ->
-                                    snackbarHostState.showSnackbar("El campo de contraseña está vacío 🔒")
-                                users.containsKey(email) ->
-                                    snackbarHostState.showSnackbar("El correo ya está registrado ☕")
-                                else -> {
-                                    userPrefs.saveUser(email, password)
-                                    snackbarHostState.showSnackbar("Usuario registrado correctamente 💜")
-                                    email = ""; password = ""
-                                }
-                            }
-                        }
-                    },
+                    onClick = { navController.navigate("registroExtendido") },
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5D4037))
-                ) { Text("Registrar nuevo usuario", color = Color.White) }
+                ) { Text("Crear Cuenta", color = Color.White) }
 
                 if (showError) {
                     LaunchedEffect(Unit) {
@@ -249,8 +240,159 @@ fun LoginScreen(navController: NavController) {
         }
     }
 }
+// 🟤 REGISTRO
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun RegistroExtendidoScreen(navController: NavController) {
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var nombre by remember { mutableStateOf("") }
+    var apodo by remember { mutableStateOf("") }
+    var fechaNacimiento by remember { mutableStateOf("") }
+    var errorPassword by remember { mutableStateOf<String?>(null) }
+    var errorEmail by remember { mutableStateOf<String?>(null) }
+    var errorEdad by remember { mutableStateOf<String?>(null) }
+    var errorNombreApodo by remember { mutableStateOf<String?>(null) }
+    var passwordVisible by remember { mutableStateOf(false) }
 
+    val context = LocalContext.current
+    val userPrefs = remember { UserPreferences(context) }
+    val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
 
+    var users by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    LaunchedEffect(Unit) { userPrefs.getUsers().collect { saved -> users = saved } }
+
+    val textFieldColors = OutlinedTextFieldDefaults.colors(
+        unfocusedBorderColor = Color.White.copy(alpha = 0.6f),
+        focusedBorderColor = Color.White,
+        cursorColor = Color.White,
+        focusedTextColor = Color.White,
+        unfocusedTextColor = Color.White,
+        focusedLabelColor = Color.White.copy(alpha = 0.8f),
+        unfocusedLabelColor = Color.White.copy(alpha = 0.6f)
+    )
+
+    fun validateRegistro(): Boolean {
+
+        errorPassword = null; errorEmail = null; errorEdad = null; errorNombreApodo = null
+        var isValid = true
+
+        if (nombre.isBlank() || apodo.isBlank()) { errorNombreApodo = "Nombre y Apodo son obligatorios."; isValid = false }
+        if (password.length < 8 || !password.any { it.isDigit() }) { errorPassword = "Mínimo 8 caracteres y debe incluir al menos 1 número."; isValid = false }
+        if (!email.endsWith("@gmail.com", ignoreCase = true) && !email.endsWith("@duocuc.cl", ignoreCase = true)) { errorEmail = "Debe usar @gmail.com o @duocuc.cl."; isValid = false }
+
+        try {
+            val parts = fechaNacimiento.split('/')
+            if (parts.size != 3) throw IllegalArgumentException("Formato incorrecto")
+            val year = parts[2].toInt()
+            if (year > 2007) {
+                errorEdad = "Debes ser mayor de 18 años para registrarte."
+                isValid = false
+            }
+        } catch (e: Exception) { errorEdad = "Formato de fecha inválido (DD/MM/AAAA)."; isValid = false }
+
+        return isValid
+    }
+
+    Scaffold(
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = { Text("Crear Cuenta", color = Color.White, fontWeight = FontWeight.SemiBold) },
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.Default.ArrowBack, "Volver al Login", tint = Color.White)
+                    }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color(0xFF7A4A47))
+            )
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        containerColor = Color(0xFF85635C)
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(horizontal = 24.dp),
+            verticalArrangement = Arrangement.Center
+        ) {
+
+            Text(
+                "Completa tu perfil",
+                color = Color.White,
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+            )
+
+            Spacer(Modifier.height(24.dp))
+
+            OutlinedTextField(
+                value = nombre, onValueChange = { nombre = it; errorNombreApodo = null },
+                label = { Text("Nombre Completo") }, singleLine = true,
+                modifier = Modifier.fillMaxWidth(), colors = textFieldColors
+            )
+            Spacer(Modifier.height(12.dp))
+
+            OutlinedTextField(
+                value = apodo, onValueChange = { apodo = it; errorNombreApodo = null },
+                label = { Text("Apodo") }, singleLine = true,
+                modifier = Modifier.fillMaxWidth(), colors = textFieldColors
+            )
+            Spacer(Modifier.height(12.dp))
+
+            OutlinedTextField(
+                value = fechaNacimiento, onValueChange = { fechaNacimiento = it; errorEdad = null },
+                label = { Text("Fecha Nacimiento (DD/MM/AAAA)") }, singleLine = true,
+                isError = errorEdad != null, supportingText = { errorEdad?.let { Text(it, color = Color.White) } },
+                modifier = Modifier.fillMaxWidth(), colors = textFieldColors
+            )
+            Spacer(Modifier.height(12.dp))
+
+            OutlinedTextField(
+                value = email, onValueChange = { email = it; errorEmail = null },
+                label = { Text("Correo electrónico") }, singleLine = true,
+                isError = errorEmail != null, supportingText = { errorEmail?.let { Text(it, color = Color.White) } },
+                modifier = Modifier.fillMaxWidth(), colors = textFieldColors
+            )
+            Spacer(Modifier.height(12.dp))
+
+            OutlinedTextField(
+                value = password, onValueChange = { password = it; errorPassword = null },
+                label = { Text("Contraseña") }, singleLine = true,
+                isError = errorPassword != null, supportingText = { errorPassword?.let { Text(it, color = Color.White) } },
+                visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                trailingIcon = { IconButton(onClick = { passwordVisible = !passwordVisible }) { Icon(imageVector = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff, contentDescription = null, tint = Color.White) } },
+                modifier = Modifier.fillMaxWidth(), colors = textFieldColors
+            )
+
+            Spacer(Modifier.height(24.dp))
+
+            if (errorNombreApodo != null) {
+                LaunchedEffect(errorNombreApodo) {
+                    snackbarHostState.showSnackbar(errorNombreApodo!!)
+                }
+            }
+
+            Button(
+                onClick = {
+                    if (validateRegistro()) {
+                        scope.launch {
+                            if (users.containsKey(email)) {
+                                snackbarHostState.showSnackbar("El correo ya está registrado ☕")
+                            } else {
+                                userPrefs.saveUser(email, password)
+                                snackbarHostState.showSnackbar("Usuario registrado correctamente 💜")
+                                navController.navigate("home/$email")
+                            }
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF815E4C))
+            ) { Text("Completar Registro", color = Color.White) }
+        }
+    }
+}
 // 🟤 HOME SCREEN
 @Composable
 fun HomeScreen(navController: NavController, email: String) {
@@ -321,7 +463,8 @@ fun HomeScreen(navController: NavController, email: String) {
                 }
                 composable("mascota") { MascotaScreen() }
                 composable("mapa") { MapaScreen(navController = homeNavController) }
-                composable("perfil") { PerfilScreen() }
+                composable("perfil") { backStackEntry -> PerfilScreen(homeNavController)
+                }
                 composable("configuracion") { ConfiguracionScreen(homeNavController, navController) }
                 composable("escanear") { EscanearScreen(homeNavController) }
             }
@@ -572,7 +715,115 @@ fun MapaScreen(navController: NavController) {
         }
     }
 }
-@Composable fun PerfilScreen() { Box(Modifier.fillMaxSize(), Alignment.Center) { Text("Pantalla de Perfil", color = Color.White) } }
+
+// PERFIL SCREEN
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+fun PerfilScreen(navController: NavController) {
+    val nombreCompleto by remember { mutableStateOf("Priscilla Pereira") }
+    val apodo by remember { mutableStateOf("Prisci") }
+    val fechaNacimiento by remember { mutableStateOf("09/07/2000") }
+
+    var selectedPhotoId by remember { mutableStateOf<Int?>(R.drawable.perfil1) }
+
+    val profilePhotos = remember {
+        listOf(
+            R.drawable.perfil1,
+            R.drawable.perfil2,
+            R.drawable.perfil3
+        )
+    }
+
+    Scaffold(
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = { Text("Mi Perfil", color = Color.White, fontWeight = FontWeight.SemiBold) },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = Color(0xFF3E2723),
+                    titleContentColor = Color.White
+                )
+            )
+        },
+        containerColor = MaterialTheme.colorScheme.background
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0xFF4E342E))
+                .padding(paddingValues)
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+
+            Spacer(Modifier.height(32.dp))
+
+
+            Image(
+
+                painter = painterResource(id = selectedPhotoId ?: R.drawable.perfil1),
+                contentDescription = "Foto de Perfil Actual",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(120.dp)
+                    .clip(CircleShape)
+                    .background(Color.White)
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+
+            Text(
+                "Bienvenido, $apodo!",
+                color = Color.White,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold
+            )
+
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF6D4C41)),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Nombre Completo: $nombreCompleto", color = Color.White)
+                    Text("Fecha Nacimiento: $fechaNacimiento", color = Color.White)
+                }
+            }
+
+
+            Text(
+                "Selecciona tu avatar:",
+                color = Color.White,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(top = 16.dp, bottom = 12.dp)
+            )
+
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                profilePhotos.forEach { photoId ->
+                    Image(
+                        painter = painterResource(id = photoId),
+                        contentDescription = "Opción de Avatar",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(80.dp)
+                            .clip(RoundedCornerShape(0.dp))
+                            .clickable { selectedPhotoId = photoId }
+                            .border(
+                                width = if (photoId == selectedPhotoId) 4.dp else 2.dp,
+                                color = if (photoId == selectedPhotoId) Color(0xFFFFD600) else Color.LightGray,
+                                shape = RoundedCornerShape(0.dp)
+                            )
+                    )
+                }
+            }
+        }
+    }
+}
 
 // 🟤 TOPBAR
 @Composable
