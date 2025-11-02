@@ -259,7 +259,8 @@ fun HomeScreen(navController: NavController, email: String) {
     val userPrefs = remember { UserPreferences(context) }
     val scope = rememberCoroutineScope()
     val userCoinsFlow = userPrefs.getCoinsForUser(email)
-    val userCoins: Int by userCoinsFlow.collectAsState(initial = 0)
+    val userCoins by userCoinsFlow.collectAsState(initial = 0)
+
     val onCoinChange: (Int) -> Unit = { newCoins ->
         scope.launch {
             userPrefs.saveCoinsForUser(email, newCoins)
@@ -318,17 +319,15 @@ fun HomeScreen(navController: NavController, email: String) {
                         homeNavController = homeNavController
                     )
                 }
-
                 composable("mascota") { MascotaScreen() }
-                composable("mapa") { MapaScreen(navController = navController) }
+                composable("mapa") { MapaScreen(navController = homeNavController) }
                 composable("perfil") { PerfilScreen() }
-                composable("configuracion") { ConfiguracionScreen(navController) }
+                composable("configuracion") { ConfiguracionScreen(homeNavController, navController) }
                 composable("escanear") { EscanearScreen(homeNavController) }
             }
         }
     }
 }
-
 
 // 🟤 NAVBAR
 @Composable
@@ -528,16 +527,14 @@ fun TiendaScreen(
 }
 // 🟤 OTRAS PANTALLAS
 @Composable fun MascotaScreen() { Box(Modifier.fillMaxSize()) }
+
+
 //Mapa
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MapaScreen(navController: NavController) {
-    // 1. Define las coordenadas de tu cafetería (NUEVAS COORDENADAS)
     val cafeLocation = LatLng(-33.499861507690675, -70.61655029657071)
-
-    // 2. Define el estado de la cámara del mapa
     val cameraPositionState = rememberCameraPositionState {
-        // Inicializa la cámara en la nueva ubicación con un zoom de 15f
         position = CameraPosition.fromLatLngZoom(cafeLocation, 15f)
     }
 
@@ -546,8 +543,12 @@ fun MapaScreen(navController: NavController) {
             CenterAlignedTopAppBar(
                 title = { Text("Mapa de Cafetería", color = Color.White, fontWeight = FontWeight.SemiBold) },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, "Volver", tint = Color.White)
+                    IconButton(onClick = {
+                        navController.navigate("mascota") {
+                            popUpTo("mapa") { inclusive = true }
+                        }
+                    }) {
+                        Icon(Icons.Default.ArrowBack, "Volver a Mascota", tint = Color.White)
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
@@ -606,7 +607,7 @@ fun TopBar(userLevel: Int, currentExp: Float, maxExp: Float, userCoins: Int, onS
 // 🟤 CONFIGURACION
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ConfiguracionScreen(navController: NavController) {
+fun ConfiguracionScreen(homeNavController: NavController, mainNavController: NavController) {
     var notificacionesActivadas by remember { mutableStateOf(true) }
     var volumen by remember { mutableStateOf(5f) }
 
@@ -615,13 +616,15 @@ fun ConfiguracionScreen(navController: NavController) {
             CenterAlignedTopAppBar(
                 title = { Text("Ajustes", color = Color.White, fontWeight = FontWeight.SemiBold) },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, "Volver", tint = Color.White)
+                    IconButton(onClick = {
+                        homeNavController.navigate("mascota") {
+                            popUpTo("configuracion") { inclusive = true }
+                        }
+                    }) {
+                        Icon(Icons.Default.ArrowBack, "Volver a Mascota", tint = Color.White)
                     }
                 },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = Color(0xFF3E2723)
-                )
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color(0xFF3E2723))
             )
         },
         containerColor = MaterialTheme.colorScheme.background
@@ -692,7 +695,7 @@ fun ConfiguracionScreen(navController: NavController) {
 
                 Spacer(Modifier.width(8.dp))
 
-                // Icono de volumen (ej: volumen alto)
+                // Icono de volumen
                 Icon(
                     Icons.Default.VolumeUp,
                     contentDescription = "Volumen alto",
@@ -706,7 +709,7 @@ fun ConfiguracionScreen(navController: NavController) {
             Spacer(Modifier.height(24.dp))
             Button(
                 onClick = {
-                    navController.navigate("login") {
+                    mainNavController.navigate("login") {
                         popUpTo("home/{email}") { inclusive = true }
                     }
                 },
